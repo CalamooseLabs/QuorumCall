@@ -1,0 +1,61 @@
+[[questions]]
+id = "q1"
+type = "radio"
+title = "Do you work remotely?"
+required = true
+options = ["Yes, fully remote", "Hybrid", "In office"]
+
+[questions.next]
+"Yes, fully remote" = "q2"
+Hybrid = "q2"
+"In office" = "q4"
+
+[[questions]]
+id = "q2"
+type = "slider"
+title = "How many days per week do you work from home?"
+required = true
+slider_min = 0
+slider_max = 5
+slider_step = 1
+next = "q3"
+
+[questions.slider_labels]
+"0" = "Never"
+"5" = "Every day"
+
+[[questions]]
+id = "q3"
+type = "radio"
+title = "Is your internet connection adequate for video calls?"
+required = true
+options = ["Yes", "Sometimes", "No"]
+next = "q4"
+
+[[questions]]
+id = "q4"
+type = "checkbox"
+title = "Which communication tools do you use daily?"
+required = false
+options = ["Slack", "Zoom", "Email", "Google Meet", "Microsoft Teams"]
+include_other = true
+
+[[questions]]
+id = "q5"
+type = "rating"
+title = "Rate your overall work environment satisfaction"
+required = true
+rating_max = 5
+
+[[questions]]
+id = "q6"
+type = "likert"
+title = "My company supports my wellbeing"
+required = true
+likert_options = ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"]
+
+[[questions]]
+id = "q7"
+type = "long_answer"
+title = "Any additional comments or suggestions?"
+required = false

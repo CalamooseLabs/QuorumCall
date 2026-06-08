@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "quorumcall"
+version = "0.1.0"
+description = "Internal polling server"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "python-multipart>=0.0.6",
+    "rich>=13",
+]
+
+[project.scripts]
+quorumcall = "quorumcall.cli:main"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+    "pytest-cov>=4",
+    "pytest-sugar>=1",
+    "httpx>=0.24",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: full HTTP stack via subprocess (slow) — run with: pytest -m integration",
+]
+
+[tool.coverage.run]
+source = ["quorumcall"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
