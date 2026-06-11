@@ -73,12 +73,31 @@
             description = "Public base URL included in poll share links.";
           };
 
+          adminKey = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            example = "s3cr3t";
+            description = ''
+              Admin secret as a literal string, exported to the service as the
+              QUORUMCALL_ADMIN_KEY environment variable.
+
+              WARNING: this value is embedded in the systemd unit and is therefore
+              world-readable in the Nix store. For real deployments prefer
+              {option}`services.quorumcall.adminKeyFile`, which keeps the secret out
+              of the store. Mutually exclusive with `adminKeyFile`.
+            '';
+          };
+
           adminKeyFile = lib.mkOption {
             type = lib.types.nullOr lib.types.path;
             default = null;
             description = ''
-              Path to an EnvironmentFile containing QUORUMCALL_ADMIN_KEY=<secret>.
-              If null, admin routes are unprotected.
+              Path to an EnvironmentFile (e.g. from a secrets manager) containing
+              QUORUMCALL_ADMIN_KEY=<secret>. Read at service start, so the secret
+              never enters the Nix store. Mutually exclusive with `adminKey`.
+
+              If both `adminKey` and `adminKeyFile` are null, admin routes are
+              unprotected.
             '';
           };
 
@@ -109,6 +128,13 @@
               brand_icon    = cfg.brandIcon;
             });
           in {
+            assertions = [
+              {
+                assertion = !(cfg.adminKey != null && cfg.adminKeyFile != null);
+                message = "services.quorumcall: set at most one of `adminKey` or `adminKeyFile`, not both.";
+              }
+            ];
+
             systemd.services.quorumcall = {
               description = "QuorumCall polling server";
               wantedBy = [ "multi-user.target" ];
@@ -120,6 +146,8 @@
                 QUORUMCALL_DATA_DIR     = cfg.dataDir;
                 QUORUMCALL_BASE_URL     = cfg.baseUrl;
                 QUORUMCALL_SETTINGS_FILE = "${settingsFile}";
+              } // lib.optionalAttrs (cfg.adminKey != null) {
+                QUORUMCALL_ADMIN_KEY = cfg.adminKey;
               };
 
               serviceConfig = {

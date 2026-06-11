@@ -1,6 +1,6 @@
 import json
 
-from .settings import DEFAULTS
+from settings import DEFAULTS
 
 _TEMPLATE = """<!DOCTYPE html>
 <html lang="en">

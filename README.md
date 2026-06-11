@@ -61,7 +61,12 @@ nix run github:your-org/QuorumCall -- serve
 }
 ```
 
-`adminKeyFile` must be an EnvironmentFile with `QUORUMCALL_ADMIN_KEY=<secret>`.
+The admin secret can be supplied two ways (mutually exclusive — setting both is a config error):
+
+- **`adminKeyFile`** — path to an EnvironmentFile containing `QUORUMCALL_ADMIN_KEY=<secret>`. Read at service start, so the secret never enters the Nix store. **Use this for real deployments.**
+- **`adminKey`** — the secret as a literal string. Handy for quick/local setups, but it is embedded in the systemd unit and therefore **world-readable in the Nix store**.
+
+If neither is set, admin routes are unprotected.
 
 ### Pip
 
@@ -85,7 +90,7 @@ Dev-shell shortcuts:
 
 ```
 runserver    # quorumcall serve with env-var defaults
-runtests     # pytest --cov=quorumcall --cov-report=term-missing
+runtests     # pytest --cov=src --cov-report=term-missing
 ```
 
 ---
@@ -332,8 +337,8 @@ runtests tests/test_db.py         # single file
 runtests -k test_aggregate_radio  # single test
 ```
 
-Commits are signed with a YubiKey. Never run `git commit` directly — update `GIT_COMMIT_MSG` then:
+Commits are signed with a YubiKey. Never run `git commit` directly — update `GIT_COMMIT_MSG` then run `gcommit` (provided by the dev shell):
 
 ```bash
-./gcommit
+gcommit
 ```

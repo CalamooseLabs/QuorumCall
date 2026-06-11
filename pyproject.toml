@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "quorumcall"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-quorumcall = "quorumcall.cli:main"
+quorumcall = "cli:main"
 
 [project.optional-dependencies]
 test = [
@@ -25,10 +25,12 @@ test = [
     "httpx>=0.24",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["cli", "db", "main", "ui", "settings", "schemas", "log", "_version"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-m 'not integration'"
 markers = [
@@ -36,7 +38,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["quorumcall"]
+source = ["src"]
 branch = true
 
 [tool.coverage.report]

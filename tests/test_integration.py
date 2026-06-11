@@ -5,13 +5,18 @@ Excluded from the default runtests run.
 """
 import io
 import json
+import os
 import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import httpx
 import pytest
+
+# Dev runs don't install the package; point subprocesses at the flat src/ layout.
+SRC = str(Path(__file__).resolve().parents[1] / "src")
 
 
 def _free_port() -> int:
@@ -40,12 +45,13 @@ def server(tmp_path_factory):
 
     proc = subprocess.Popen(
         [
-            sys.executable, "-m", "quorumcall.cli",
+            sys.executable, "-m", "cli",
             "serve",
             "--host", "127.0.0.1",
             "--port", str(port),
             "--data-dir", str(data_dir),
         ],
+        env={**os.environ, "PYTHONPATH": SRC},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -165,13 +171,13 @@ def test_admin_key_enforced(tmp_path_factory):
 
     proc = subprocess.Popen(
         [
-            sys.executable, "-m", "quorumcall.cli",
+            sys.executable, "-m", "cli",
             "serve",
             "--host", "127.0.0.1",
             "--port", str(port),
             "--data-dir", str(data_dir),
         ],
-        env={**__import__("os").environ, "QUORUMCALL_ADMIN_KEY": "s3cr3t"},
+        env={**os.environ, "PYTHONPATH": SRC, "QUORUMCALL_ADMIN_KEY": "s3cr3t"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

@@ -8,7 +8,7 @@ import pytest
 
 def run_cli(*argv):
     with patch("sys.argv", ["quorumcall", *argv]):
-        from quorumcall.cli import main
+        from cli import main
         main()
 
 
@@ -27,7 +27,7 @@ def test_add_poll_with_expiry(data_dir, tmp_path, questions):
     q_file = tmp_path / "q.json"
     q_file.write_text(json.dumps({"questions": questions}))
     run_cli("add-poll", "--title", "Expiring", "--file", str(q_file), "--expires", "2030-01-01T00:00:00")
-    from quorumcall import db
+    import db
     rows = db.list_polls()
     assert len(rows) == 1
     assert "2030" in rows[0]["expires_at"]
@@ -37,7 +37,7 @@ def test_add_poll_without_expiry(data_dir, tmp_path, questions):
     q_file = tmp_path / "q.json"
     q_file.write_text(json.dumps({"questions": questions}))
     run_cli("add-poll", "--title", "Forever", "--file", str(q_file))
-    from quorumcall import db
+    import db
     assert db.list_polls()[0]["expires_at"] is None
 
 
@@ -76,7 +76,7 @@ def test_list_polls_empty(data_dir, capsys):
 
 
 def test_list_polls_active(data_dir, questions, capsys):
-    from quorumcall import db
+    import db
     db.create_poll("Active Poll", questions)
     run_cli("list-polls")
     out = capsys.readouterr().out
@@ -85,7 +85,7 @@ def test_list_polls_active(data_dir, questions, capsys):
 
 
 def test_list_polls_expired_by_flag(data_dir, questions, capsys):
-    from quorumcall import db
+    import db
     pid = db.create_poll("Old", questions)
     db.expire_poll(pid)
     run_cli("list-polls")
@@ -94,14 +94,14 @@ def test_list_polls_expired_by_flag(data_dir, questions, capsys):
 
 def test_list_polls_no_expires_at(data_dir, questions, capsys):
     """Poll with no expires_at shows 'never'."""
-    from quorumcall import db
+    import db
     db.create_poll("Forever", questions)
     run_cli("list-polls")
     assert "never" in capsys.readouterr().out
 
 
 def test_list_polls_expired_by_naive_past_datetime(data_dir, questions, capsys):
-    from quorumcall import db
+    import db
     from datetime import datetime
     db.create_poll("Past", questions, datetime(2000, 1, 1))  # naive, past
     run_cli("list-polls")
@@ -109,7 +109,7 @@ def test_list_polls_expired_by_naive_past_datetime(data_dir, questions, capsys):
 
 
 def test_list_polls_not_expired_by_aware_future_datetime(data_dir, questions, capsys):
-    from quorumcall import db
+    import db
     from datetime import datetime, timezone
     db.create_poll("Future", questions, datetime(2099, 1, 1, tzinfo=timezone.utc))
     run_cli("list-polls")
@@ -121,7 +121,7 @@ def test_list_polls_not_expired_by_aware_future_datetime(data_dir, questions, ca
 def test_expire_poll_success(data_dir, poll_id, capsys):
     run_cli("expire-poll", poll_id)
     assert "Expired:" in capsys.readouterr().out
-    from quorumcall import db
+    import db
     assert db.get_poll(poll_id)["is_expired"] == 1
 
 

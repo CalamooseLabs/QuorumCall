@@ -12,6 +12,9 @@ pkgs.mkShell {
       ps."pytest-sugar"
       ps.httpx
     ]))
+    (pkgs.writeShellScriptBin "quorumcall" ''
+      exec python3 -m cli "$@"
+    '')
     (pkgs.writeShellScriptBin "runserver" ''
       exec quorumcall serve \
         --host "''${QUORUMCALL_HOST:-127.0.0.1}" \
@@ -20,7 +23,7 @@ pkgs.mkShell {
         "$@"
     '')
     (pkgs.writeShellScriptBin "runtests" ''
-      exec pytest --cov=quorumcall --cov-report=term-missing "$@"
+      exec pytest --cov=src --cov-report=term-missing "$@"
     '')
     (pkgs.writeShellScriptBin "gcommit" ''
       set -euo pipefail
@@ -32,7 +35,9 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
+    export PYTHONPATH="$PWD/src''${PYTHONPATH:+:$PYTHONPATH}"
     echo "QuorumCall dev shell"
+    echo "  quorumcall  — CLI (serve / add-poll / list-polls / expire-poll)"
     echo "  runserver   — start the polling server (./data/quorumcall.db)"
     echo "  runtests    — run test suite with branch coverage"
     echo "  gcommit     — review and sign-commit GIT_COMMIT_MSG"

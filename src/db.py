@@ -12,8 +12,10 @@ def _db_path() -> Path:
 
 
 def init_db() -> None:
+    # Two single-statement execute() calls (not executescript, which would force
+    # an implicit COMMIT and break the manual transaction managed by _conn()).
     with _conn() as conn:
-        conn.executescript("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS polls (
                 id             TEXT PRIMARY KEY,
                 title          TEXT NOT NULL,
@@ -21,14 +23,16 @@ def init_db() -> None:
                 expires_at     TEXT,
                 is_expired     INTEGER NOT NULL DEFAULT 0,
                 questions_json TEXT NOT NULL
-            );
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS responses (
                 id           TEXT PRIMARY KEY,
                 poll_id      TEXT NOT NULL,
                 submitted_at TEXT NOT NULL,
                 answers_json TEXT NOT NULL,
                 FOREIGN KEY (poll_id) REFERENCES polls(id)
-            );
+            )
         """)
 
 
@@ -36,11 +40,16 @@ def init_db() -> None:
 def _conn():
     conn = sqlite3.connect(str(_db_path()))
     conn.row_factory = sqlite3.Row
+    # Manual transaction control: sqlite3's legacy isolation only opens an
+    # implicit transaction before DML, so DDL would auto-commit and escape a
+    # rollback. An explicit BEGIN wraps every statement (DML and DDL alike).
+    conn.isolation_level = None
     try:
+        conn.execute("BEGIN")
         yield conn
-        conn.commit()
+        conn.execute("COMMIT")
     except Exception:
-        conn.rollback()
+        conn.execute("ROLLBACK")
         raise
     finally:
         conn.close()

@@ -28,22 +28,34 @@ quorumcall list-polls
 quorumcall expire-poll <uuid>
 
 # Tests
-pytest --cov=quorumcall --cov-report=term-missing   # full suite with branch coverage
+pytest --cov=src --cov-report=term-missing          # full suite with branch coverage
 pytest tests/test_db.py                              # single file
 pytest -k test_aggregate_radio_other                 # single test
 ```
 
-## Planned Architecture
+## Architecture
+
+Flat module layout under `src/` — there is **no** `quorumcall` package directory. Modules sit
+directly in `src/` and import each other absolutely (`import db`, `from ui import render_html`).
+The distribution is still named `quorumcall` and still installs a `quorumcall` console script
+(entry point `cli:main`); `src` is put on `PYTHONPATH` for dev (shell hook) and tests (pytest
+`pythonpath`).
 
 ```
-quorumcall/
+src/
 ├── cli.py       # argparse entry point; sets QUORUMCALL_DATA_DIR env var then starts uvicorn
 ├── db.py        # sqlite3 via contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time
 ├── schemas.py   # Pydantic: AnswerValue, SubmitResponse (minimal — dicts used elsewhere)
 ├── main.py      # FastAPI app + all routes + _aggregate() for results
 ├── settings.py  # load_settings() — reads settings.json; DEFAULTS dict
-└── html.py      # render_html(settings) — themed single-page poll UI (vanilla JS)
+├── ui.py        # render_html(settings) — themed single-page poll UI (vanilla JS)
+├── log.py       # setup_logging() / get_logger() — Rich-based logging
+└── _version.py  # __version__
 ```
+
+> `ui.py` holds the poll-UI renderer. It is **not** named `html.py`: as a top-level module that
+> would shadow the stdlib `html` module (breaking `html.escape`, which Starlette uses, in dev, and
+> breaking our own `from ui import render_html` once installed).
 
 **Data layer**: Two SQLite tables — `polls` (id, title, created_at, expires_at, is_expired, questions_json) and `responses` (id, poll_id, submitted_at, answers_json). Questions and answers are stored as JSON blobs.
 

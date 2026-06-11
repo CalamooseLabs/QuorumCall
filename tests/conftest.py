@@ -21,14 +21,14 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.delenv("QUORUMCALL_HOST", raising=False)
     monkeypatch.delenv("QUORUMCALL_PORT", raising=False)
     monkeypatch.delenv("QUORUMCALL_SETTINGS_FILE", raising=False)
-    from quorumcall import db
+    import db
     db.init_db()
     return tmp_path
 
 
 @pytest.fixture
 def client(data_dir):
-    from quorumcall.main import app
+    from main import app
     with TestClient(app) as c:
         yield c
 
@@ -43,5 +43,5 @@ def questions():
 
 @pytest.fixture
 def poll_id(data_dir, questions):
-    from quorumcall import db
+    import db
     return db.create_poll("Test Poll", questions)

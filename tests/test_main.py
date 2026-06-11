@@ -162,35 +162,35 @@ def test_get_poll_not_found(client):
 # ─── _is_expired branch coverage (exercised through get_poll) ─────────────────
 
 def test_expired_by_flag(client, data_dir):
-    from quorumcall import db
+    import db
     pid = db.create_poll("P", [{"id": "q1", "type": "short_answer", "title": "Q"}])
     db.expire_poll(pid)
     assert client.get(f"/api/polls/{pid}").json()["is_expired"] is True
 
 
 def test_expired_by_naive_past_datetime(client, data_dir):
-    from quorumcall import db
+    import db
     past = datetime(2000, 1, 1)   # naive, past
     pid = db.create_poll("P", [{"id": "q1", "type": "short_answer", "title": "Q"}], past)
     assert client.get(f"/api/polls/{pid}").json()["is_expired"] is True
 
 
 def test_expired_by_aware_past_datetime(client, data_dir):
-    from quorumcall import db
+    import db
     past = datetime(2000, 1, 1, tzinfo=timezone.utc)  # aware, past
     pid = db.create_poll("P", [{"id": "q1", "type": "short_answer", "title": "Q"}], past)
     assert client.get(f"/api/polls/{pid}").json()["is_expired"] is True
 
 
 def test_not_expired_future_datetime(client, data_dir):
-    from quorumcall import db
+    import db
     future = datetime(2099, 1, 1, tzinfo=timezone.utc)
     pid = db.create_poll("P", [{"id": "q1", "type": "short_answer", "title": "Q"}], future)
     assert client.get(f"/api/polls/{pid}").json()["is_expired"] is False
 
 
 def test_not_expired_no_expires_at(client, data_dir):
-    from quorumcall import db
+    import db
     pid = db.create_poll("P", [{"id": "q1", "type": "short_answer", "title": "Q"}])
     assert client.get(f"/api/polls/{pid}").json()["is_expired"] is False
 
@@ -213,7 +213,7 @@ def test_submit_response_poll_not_found(client):
 
 
 def test_submit_response_poll_expired(client, data_dir):
-    from quorumcall import db
+    import db
     pid = db.create_poll("P", [{"id": "q1", "type": "short_answer", "title": "Q"}])
     db.expire_poll(pid)
     r = client.post(f"/api/polls/{pid}/responses", json={"answers": []})
@@ -269,13 +269,13 @@ def test_results_not_found(client):
 # ─── _aggregate – full type coverage ─────────────────────────────────────────
 
 def _make_typed_poll(data_dir, *types):
-    from quorumcall import db
+    import db
     questions = [{"id": f"q_{t}", "type": t, "title": t} for t in types]
     return db.create_poll("Typed", questions), questions
 
 
 def test_aggregate_text_types(client, data_dir):
-    from quorumcall import db
+    import db
     text_types = ("short_answer", "long_answer", "email", "phone", "url", "date", "time", "datetime")
     pid, _ = _make_typed_poll(data_dir, *text_types)
     answers = [{"question_id": f"q_{t}", "value": "val"} for t in text_types]
@@ -288,7 +288,7 @@ def test_aggregate_text_types(client, data_dir):
 
 
 def test_aggregate_text_filters_null(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "short_answer")
     db.add_response(pid, [{"question_id": "q_short_answer", "value": None}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -296,7 +296,7 @@ def test_aggregate_text_filters_null(client, data_dir):
 
 
 def test_aggregate_radio_normal(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "radio")
     db.add_response(pid, [{"question_id": "q_radio", "value": "A"}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -306,7 +306,7 @@ def test_aggregate_radio_normal(client, data_dir):
 
 
 def test_aggregate_radio_other(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "radio")
     db.add_response(pid, [{"question_id": "q_radio", "value": "Other: custom"}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -315,7 +315,7 @@ def test_aggregate_radio_other(client, data_dir):
 
 
 def test_aggregate_radio_null_skipped(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "radio")
     db.add_response(pid, [{"question_id": "q_radio", "value": None}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -323,7 +323,7 @@ def test_aggregate_radio_null_skipped(client, data_dir):
 
 
 def test_aggregate_dropdown_and_true_false(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "dropdown", "true_false")
     db.add_response(pid, [
         {"question_id": "q_dropdown", "value": "Option 1"},
@@ -335,7 +335,7 @@ def test_aggregate_dropdown_and_true_false(client, data_dir):
 
 
 def test_aggregate_checkbox_list_with_other(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "checkbox")
     db.add_response(pid, [{"question_id": "q_checkbox", "value": ["X", "Other: custom"]}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -345,7 +345,7 @@ def test_aggregate_checkbox_list_with_other(client, data_dir):
 
 
 def test_aggregate_checkbox_non_list_value(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "checkbox")
     db.add_response(pid, [{"question_id": "q_checkbox", "value": "A"}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -353,7 +353,7 @@ def test_aggregate_checkbox_non_list_value(client, data_dir):
 
 
 def test_aggregate_checkbox_falsy_items_skipped(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "checkbox")
     db.add_response(pid, [{"question_id": "q_checkbox", "value": [None, "", "A"]}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -361,7 +361,7 @@ def test_aggregate_checkbox_falsy_items_skipped(client, data_dir):
 
 
 def test_aggregate_likert_normal(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "likert")
     db.add_response(pid, [{"question_id": "q_likert", "value": "Agree"}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -370,7 +370,7 @@ def test_aggregate_likert_normal(client, data_dir):
 
 
 def test_aggregate_likert_null_skipped(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "likert")
     db.add_response(pid, [{"question_id": "q_likert", "value": None}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -378,7 +378,7 @@ def test_aggregate_likert_null_skipped(client, data_dir):
 
 
 def test_aggregate_numeric_with_values(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "slider", "number", "rating")
     db.add_response(pid, [
         {"question_id": "q_slider", "value": 50},
@@ -395,7 +395,7 @@ def test_aggregate_numeric_with_values(client, data_dir):
 
 
 def test_aggregate_numeric_no_values(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "number")
     # submit a response that does NOT answer this question
     db.add_response(pid, [])
@@ -407,7 +407,7 @@ def test_aggregate_numeric_no_values(client, data_dir):
 
 
 def test_aggregate_numeric_null_value_skipped(client, data_dir):
-    from quorumcall import db
+    import db
     pid, _ = _make_typed_poll(data_dir, "number")
     db.add_response(pid, [{"question_id": "q_number", "value": None}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
@@ -415,7 +415,7 @@ def test_aggregate_numeric_null_value_skipped(client, data_dir):
 
 
 def test_aggregate_unknown_type_fallback(client, data_dir):
-    from quorumcall import db
+    import db
     questions = [{"id": "q1", "type": "mystery_type", "title": "?"}]
     pid = db.create_poll("P", questions)
     db.add_response(pid, [{"question_id": "q1", "value": "something"}])
@@ -425,7 +425,7 @@ def test_aggregate_unknown_type_fallback(client, data_dir):
 
 
 def test_aggregate_unknown_type_null_excluded(client, data_dir):
-    from quorumcall import db
+    import db
     questions = [{"id": "q1", "type": "mystery_type", "title": "?"}]
     pid = db.create_poll("P", questions)
     db.add_response(pid, [{"question_id": "q1", "value": None}])

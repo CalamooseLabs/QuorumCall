@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def _setup(data_dir: str | None) -> None:
-    from . import db
+    import db
 
     d = Path(data_dir or os.environ.get("QUORUMCALL_DATA_DIR", "."))
     d.mkdir(parents=True, exist_ok=True)
@@ -21,9 +21,9 @@ def cmd_serve(args):
     from rich.console import Console
     from rich.panel import Panel
 
-    from . import __version__
-    from .log import setup_logging
-    from .main import app
+    from _version import __version__
+    from log import setup_logging
+    from main import app
 
     host = args.host or os.environ.get("QUORUMCALL_HOST", "127.0.0.1")
     port = args.port or int(os.environ.get("QUORUMCALL_PORT", "8000"))
@@ -51,7 +51,7 @@ def cmd_add_poll(args):
     from rich.console import Console
 
     _setup(args.data_dir)
-    from . import db
+    import db
 
     path = Path(args.file)
     if path.suffix.lower() == ".toml":
@@ -80,7 +80,7 @@ def cmd_list_polls(args):
     from rich.table import Table
 
     _setup(args.data_dir)
-    from . import db
+    import db
 
     rows = db.list_polls()
     console = Console(file=sys.stdout)
@@ -114,7 +114,7 @@ def cmd_expire_poll(args):
     from rich.console import Console
 
     _setup(args.data_dir)
-    from . import db
+    import db
 
     console = Console(file=sys.stdout)
     if db.expire_poll(args.poll_id):

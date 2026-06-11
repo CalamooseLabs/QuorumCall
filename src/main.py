@@ -9,11 +9,11 @@ from typing import Optional
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from . import db
-from .html import render_html
-from .settings import load_settings
-from .log import get_logger
-from .schemas import SubmitRequest
+import db
+from ui import render_html
+from settings import load_settings
+from log import get_logger
+from schemas import SubmitRequest
 
 app = FastAPI(title="QuorumCall", version="0.1.0")
 log = get_logger()
