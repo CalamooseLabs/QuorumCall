@@ -50,7 +50,8 @@ src/
 ├── db.py        # sqlite3 via contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time
 ├── schemas.py   # Pydantic: AnswerValue, SubmitRequest (minimal — dicts used elsewhere)
 ├── settings.py  # load_settings() — reads settings.json; DEFAULTS dict
-├── ui.py        # render_html(settings) — themed single-page poll UI (vanilla JS)
+├── ui.py        # render_html(settings) — themed single-page poll-taking UI (vanilla JS)
+├── builder.py   # render_builder_html(settings) — browser poll builder, served at GET /new
 ├── console.py   # shared Rich consoles (stdout / stderr)
 ├── log.py       # setup_logging() / get_logger() — Rich-based logging
 └── _version.py  # __version__
@@ -81,6 +82,7 @@ User-facing documentation lives in `docs/` (a lean `README.md` plus
 | GET | `/api/polls/{id}/results` | admin | Aggregated results JSON |
 | POST | `/api/polls/{id}/expire` | admin | Manually expire a poll |
 | GET | `/p/{id}` | public | Browser UI (renders the poll page via `ui.render_html`) |
+| GET | `/new` | public | Browser poll builder (`builder.render_builder_html`); posts to `POST /api/polls` with the admin key entered on the page |
 
 Admin routes check `X-Admin-Key` header against `QUORUMCALL_ADMIN_KEY` env var; if the env var is unset, admin routes are open.
 

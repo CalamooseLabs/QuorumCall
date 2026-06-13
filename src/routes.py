@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Uploa
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import db
+from builder import render_builder_html
 from log import get_logger
 from results import aggregate
 from schemas import SubmitRequest
@@ -72,6 +73,12 @@ def _poll_or_404(poll_id: str):
 @router.get("/", response_class=JSONResponse)
 def root():
     return {"service": "QuorumCall", "version": "0.1.0"}
+
+
+@router.get("/new", response_class=HTMLResponse)
+def new_poll_page():
+    """The browser poll builder. Posts to POST /api/polls (admin-gated)."""
+    return HTMLResponse(content=render_builder_html(load_settings()))
 
 
 @router.get("/p/{poll_id}", response_class=HTMLResponse)

@@ -27,7 +27,7 @@ test = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["cli", "console", "db", "log", "main", "results", "routes", "schemas", "settings", "ui", "_version"]
+py-modules = ["builder", "cli", "console", "db", "log", "main", "results", "routes", "schemas", "settings", "ui", "_version"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

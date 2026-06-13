@@ -10,7 +10,8 @@ for how to set the key.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/` | — | Service info |
-| `GET` | `/p/{id}` | — | Browser poll UI |
+| `GET` | `/p/{id}` | — | Browser poll UI (respondents) |
+| `GET` | `/new` | — | Browser poll builder (see [Creating a poll](#creating-a-poll)) |
 | `POST` | `/api/polls` | admin | Create a poll |
 | `GET` | `/api/polls` | admin | List all polls |
 | `GET` | `/api/polls/{id}` | — | Poll definition + questions |
@@ -19,6 +20,18 @@ for how to set the key.
 | `POST` | `/api/polls/{id}/expire` | admin | Manually close a poll |
 
 ## Creating a Poll
+
+### In the browser
+
+Visit **`/new`** for a visual builder: add questions, pick from any of the
+[16 types](questions.md#supported-types), set their type-specific fields, and
+configure per-question [conditional branching](questions.md#conditional-branching).
+A **Quick add** sidebar drops in common fields (name, email, phone, shirt size,
+rating, …) with one click. Enter the admin key (if the server requires one) in
+the field on the page; the builder submits to `POST /api/polls` for you and
+shows the shareable link.
+
+### Via the API
 
 `POST /api/polls` as `multipart/form-data`:
 

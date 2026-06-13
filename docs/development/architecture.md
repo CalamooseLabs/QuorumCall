@@ -21,7 +21,8 @@ src/
 ├── db.py         # sqlite3 via a contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time
 ├── schemas.py    # Pydantic models (AnswerValue, SubmitRequest)
 ├── settings.py   # load_settings() — reads settings.json; DEFAULTS dict
-├── ui.py         # render_html(settings) — themed single-page poll UI (vanilla JS)
+├── ui.py         # render_html(settings) — themed single-page poll-taking UI (vanilla JS)
+├── builder.py    # render_builder_html(settings) — browser poll builder, served at GET /new
 ├── console.py    # shared Rich consoles (stdout / stderr)
 ├── log.py        # setup_logging() / get_logger() — Rich-based logging to stderr
 └── _version.py   # __version__

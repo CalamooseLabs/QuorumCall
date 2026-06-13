@@ -3,6 +3,7 @@
 Internal polling server. Create polls from a JSON or TOML file, share a link, collect responses, and retrieve results as JSON. The server also renders a browser UI for respondents.
 
 - **No logins** — polls are public, identified by UUID
+- **Build polls in the browser** — a visual builder at `/new`, or use the CLI/API
 - **Conditional branching** — questions can route respondents based on their answers
 - **Browser UI** served at `/p/{uuid}` — no frontend build step
 - **SQLite storage** — a single file, zero infrastructure
@@ -34,7 +35,7 @@ curl http://127.0.0.1:8000/api/polls/{id}/results
 | Doc | Contents |
 |-----|----------|
 | [Installation & Setup](docs/install.md) | Dev environment, the CLI, running locally, pip, building |
-| [Question Types & Format](docs/questions.md) | JSON/TOML format, all 17 question types, conditional branching |
+| [Question Types & Format](docs/questions.md) | JSON/TOML format, all 16 question types, conditional branching |
 | [API Reference](docs/api.md) | All routes, request/response shapes, results aggregation |
 | [Configuration](docs/configuration.md) | Environment variables, branding & theming |
 | [NixOS Module](docs/nixos.md) | Deploying as a NixOS service, every module option, privileged ports |

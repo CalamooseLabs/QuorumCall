@@ -41,6 +41,32 @@ def test_poll_page_serves_html(client):
     assert "<!DOCTYPE html>" in r.text
 
 
+# ─── builder page ───────────────────────────────────────────────────────────────
+
+def test_builder_page_serves_html(client):
+    r = client.get("/new")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "<!DOCTYPE html>" in r.text
+    assert "Create a poll" in r.text
+    assert 'id="qlist"' in r.text
+
+
+def test_create_poll_from_builder_shape(client):
+    # Mirrors what the builder posts: a JSON blob with branching (string + dict `next`).
+    questions = [
+        {"id": "q1", "type": "radio", "title": "Happy?", "options": ["Yes", "No"],
+         "next": {"Yes": "q3", "No": "q2"}},
+        {"id": "q2", "type": "long_answer", "title": "Why not?", "next": "q3"},
+        {"id": "q3", "type": "rating", "title": "Rate us", "rating_max": 5, "required": True},
+    ]
+    r = upload_poll(client, title="Builder poll", questions=questions)
+    assert r.status_code == 200
+    poll_id = r.json()["id"]
+    got = client.get(f"/api/polls/{poll_id}").json()
+    assert got["questions"] == questions
+
+
 # ─── create poll ──────────────────────────────────────────────────────────────
 
 def test_create_poll_success(client):

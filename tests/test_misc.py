@@ -27,6 +27,33 @@ def test_render_html_brand_injected():
     assert "https://example.com/logo.png" in html
 
 
+def test_render_builder_html_default():
+    from builder import render_builder_html
+    from settings import DEFAULTS
+    html = render_builder_html(DEFAULTS)
+    assert "<!DOCTYPE html>" in html
+    assert DEFAULTS["primary_color"] in html
+    assert "Create a poll" in html
+    assert 'id="qlist"' in html
+    # presets sidebar
+    assert 'id="presets"' in html
+    assert "Quick add" in html
+    assert "Shirt size" in html
+
+
+def test_render_builder_html_custom_primary_color():
+    from builder import render_builder_html
+    html = render_builder_html({"primary_color": "#ff5500"})
+    assert "#ff5500" in html
+
+
+def test_render_builder_html_brand_injected():
+    from builder import render_builder_html
+    html = render_builder_html({"brand_name": "Acme Corp", "brand_icon": "https://example.com/logo.png"})
+    assert "Acme Corp" in html
+    assert "https://example.com/logo.png" in html
+
+
 def test_load_settings_returns_defaults_when_no_file(tmp_path, monkeypatch):
     monkeypatch.setenv("QUORUMCALL_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("QUORUMCALL_SETTINGS_FILE", raising=False)
