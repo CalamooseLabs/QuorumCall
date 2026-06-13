@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 QuorumCall is an internal company polling server. Key constraints from the owner:
 
 - **No user logins** — polls are public by UUID
-- **Python, minimal dependencies** — FastAPI + uvicorn + python-multipart + stdlib sqlite3
+- **Python, minimal dependencies** — FastAPI + uvicorn + python-multipart + rich + stdlib sqlite3
 - **Nix-first** — must be packageable via `flake.nix` and runnable as a NixOS service
 - **Signed commits only** — owner uses a YubiKey; never commit directly. Write commit messages to `GIT_COMMIT_MSG` and tell the user to run `gcommit` (provided by the dev shell)
 - **Results as JSON** — all API responses are JSON; the server also serves a minimal browser UI for respondents
@@ -44,14 +44,21 @@ The distribution is still named `quorumcall` and still installs a `quorumcall` c
 ```
 src/
 ├── cli.py       # argparse entry point; sets QUORUMCALL_DATA_DIR env var then starts uvicorn
+├── main.py      # FastAPI app assembly + request-logging middleware; includes routes.router
+├── routes.py    # all route handlers + request helpers (_require_admin, _is_expired, _poll_or_404, _parse_questions_file)
+├── results.py   # aggregate() — builds the /results summary from responses
 ├── db.py        # sqlite3 via contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time
-├── schemas.py   # Pydantic: AnswerValue, SubmitResponse (minimal — dicts used elsewhere)
-├── main.py      # FastAPI app + all routes + _aggregate() for results
+├── schemas.py   # Pydantic: AnswerValue, SubmitRequest (minimal — dicts used elsewhere)
 ├── settings.py  # load_settings() — reads settings.json; DEFAULTS dict
 ├── ui.py        # render_html(settings) — themed single-page poll UI (vanilla JS)
+├── console.py   # shared Rich consoles (stdout / stderr)
 ├── log.py       # setup_logging() / get_logger() — Rich-based logging
 └── _version.py  # __version__
 ```
+
+User-facing documentation lives in `docs/` (a lean `README.md` plus
+`docs/{install,questions,api,configuration,nixos}.md` and
+`docs/development/{architecture,testing}.md`). Keep it in sync when behaviour changes.
 
 > `ui.py` holds the poll-UI renderer. It is **not** named `html.py`: as a top-level module that
 > would shadow the stdlib `html` module (breaking `html.escape`, which Starlette uses, in dev, and
@@ -59,9 +66,9 @@ src/
 
 **Data layer**: Two SQLite tables — `polls` (id, title, created_at, expires_at, is_expired, questions_json) and `responses` (id, poll_id, submitted_at, answers_json). Questions and answers are stored as JSON blobs.
 
-**Poll expiry**: A poll is expired if `is_expired=1` OR `expires_at < now()`. The `_is_expired(row)` helper in `main.py` centralises this check.
+**Poll expiry**: A poll is expired if `is_expired=1` OR `expires_at < now()`. The `_is_expired(row)` helper in `routes.py` centralises this check.
 
-**Conditional branching**: Each question's `next` field is either a string (fixed next question ID), a dict (answer→question ID map), or null (sequential). The frontend JS and `getNextId()` implement the same logic.
+**Conditional branching**: Each question's `next` field is either a string (fixed next question ID), a dict (answer→question ID map), or null/omitted (next question in order). Branching is **frontend-only** — the JS function `nextId()` in `ui.py` evaluates it; the server just stores whatever answers it receives.
 
 ## API Routes
 
@@ -73,7 +80,7 @@ src/
 | POST | `/api/polls/{id}/responses` | public | Submit a response |
 | GET | `/api/polls/{id}/results` | admin | Aggregated results JSON |
 | POST | `/api/polls/{id}/expire` | admin | Manually expire a poll |
-| GET | `/p/{id}` | public | Browser UI (serves `POLL_HTML`) |
+| GET | `/p/{id}` | public | Browser UI (renders the poll page via `ui.render_html`) |
 
 Admin routes check `X-Admin-Key` header against `QUORUMCALL_ADMIN_KEY` env var; if the env var is unset, admin routes are open.
 
@@ -102,15 +109,40 @@ Radio and checkbox support `include_other: true` to add a free-text "Other" opti
 }
 ```
 
-`next` is omitted → sequential. `next` is `"__end__"` or `null` → submit immediately after this question.
+`next` omitted or `null` → go to the next question in order, submitting after the last one. A string jumps to that question ID; a dict routes by the selected answer (falling back to the next question in order when unmapped).
 
 ## Nix Package
 
-`flake.nix` must export:
-- `packages.x86_64-linux.default` — the `buildPythonApplication` derivation
-- `nixosModules.default` — a NixOS module with `services.quorumcall.{enable, host, port, dataDir}` options, running as a systemd service with `DynamicUser = true`
+The Nix build is split across files (mirrors CalamooseLabs/OpenReturn):
+- `flake.nix` — thin orchestration. `packages.x86_64-linux.default` / `apps.default`
+  via `pkgs.callPackage ./build.nix {}`; `devShells.default` via `import ./shell.nix`;
+  `nixosModules.default = import ./module.nix`.
+- `build.nix` — `{ pkgs ? import <nixpkgs> {} }: buildPythonApplication {...}`;
+  buildable standalone (`nix-build build.nix`).
+- `module.nix` — the NixOS module (`{ config, lib, pkgs, ... }`). Its `package`
+  option defaults to `pkgs.callPackage ./build.nix {}`, so the module has **no**
+  dependency on flake `self` and can be imported standalone.
 
-The NixOS module references the package via `self.packages.${pkgs.stdenv.hostPlatform.system}.default`.
+`services.quorumcall` options: `enable, package, host, port, user, group, runAsRoot,
+openFirewall, dataDir, baseUrl, adminKey, adminKeyFile, primaryColor, brandName,
+brandIcon`.
+
+The service runs as a dedicated **static system user** (`user`/`group`, default
+`quorumcall`) with a hardened unit (`ProtectSystem=strict`, `ReadWritePaths=[dataDir]`,
+`ProtectHome`, `PrivateTmp`); `StateDirectory` manages `dataDir`, and the CLI is put on
+the host PATH (`environment.systemPackages`) for poll management. Behaviours to keep
+working when editing the module:
+
+- **Privileged ports.** `port` is `lib.types.port`. When `port` is 1-1023 and
+  `runAsRoot` is false, the unit gets `AmbientCapabilities`/`CapabilityBoundingSet =
+  "CAP_NET_BIND_SERVICE"` so the service user can bind it (e.g. port 80). Otherwise
+  (port 0 or ≥ 1024, non-root) it sets `NoNewPrivileges = true`. Root binds any port
+  natively, so neither applies under `runAsRoot`.
+- **`runAsRoot`.** When true, runs as `root` (no service user is created); the
+  hardening and `StateDirectory` still apply.
+- **Secrets.** `adminKey` (literal — world-readable in the store, emits a build
+  warning) and `adminKeyFile` (EnvironmentFile, preferred) are mutually exclusive
+  (assertion).
 
 ## Commit Workflow
 

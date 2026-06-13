@@ -1,14 +1,16 @@
+"""Rich-based logging. Log records render to stderr via the shared err_console."""
+
 import logging
 
-from rich.console import Console
 from rich.logging import RichHandler
 
-_console = Console(stderr=True)
+from console import err_console
 
 
 def setup_logging() -> None:
+    """Install a Rich log handler on the root logger (stderr, markup enabled)."""
     handler = RichHandler(
-        console=_console,
+        console=err_console,
         show_path=False,
         markup=True,
         rich_tracebacks=True,
@@ -24,4 +26,5 @@ def setup_logging() -> None:
 
 
 def get_logger(name: str = "quorumcall") -> logging.Logger:
+    """Return the named application logger (defaults to ``quorumcall``)."""
     return logging.getLogger(name)

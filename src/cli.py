@@ -18,10 +18,10 @@ def _setup(data_dir: str | None) -> None:
 
 def cmd_serve(args):
     import uvicorn
-    from rich.console import Console
     from rich.panel import Panel
 
     from _version import __version__
+    from console import err_console
     from log import setup_logging
     from main import app
 
@@ -34,7 +34,7 @@ def cmd_serve(args):
 
     setup_logging()
 
-    Console(stderr=True).print(
+    err_console.print(
         Panel.fit(
             f"[bold blue]QuorumCall[/bold blue]  [dim]v{__version__}[/dim]\n"
             f"[dim]url [/dim]  http://{host}:{port}\n"
@@ -48,7 +48,7 @@ def cmd_serve(args):
 
 
 def cmd_add_poll(args):
-    from rich.console import Console
+    from console import console
 
     _setup(args.data_dir)
     import db
@@ -70,20 +70,19 @@ def cmd_add_poll(args):
     base_url = os.environ.get("QUORUMCALL_BASE_URL", "http://localhost:8000")
     url = f"{base_url}/p/{poll_id}"
 
-    console = Console(file=sys.stdout)
     console.print(f"[green]✓[/green] Created: [bold]{poll_id}[/bold]")
     console.print(f"  URL: {url}")
 
 
 def cmd_list_polls(args):
-    from rich.console import Console
     from rich.table import Table
+
+    from console import console
 
     _setup(args.data_dir)
     import db
 
     rows = db.list_polls()
-    console = Console(file=sys.stdout)
 
     if not rows:
         console.print("No polls.")
@@ -111,12 +110,11 @@ def cmd_list_polls(args):
 
 
 def cmd_expire_poll(args):
-    from rich.console import Console
+    from console import console
 
     _setup(args.data_dir)
     import db
 
-    console = Console(file=sys.stdout)
     if db.expire_poll(args.poll_id):
         console.print(f"[green]✓[/green] Expired: {args.poll_id}")
     else:
