@@ -12,6 +12,16 @@ def _db_path() -> Path:
 
 
 def init_db() -> None:
+    path = str(_db_path())
+    # WAL lets readers run concurrently with a writer (helps the read-heavy
+    # /results and /p routes). It must be set outside a transaction, so use a
+    # throwaway connection; the mode then persists in the DB file.
+    wal = sqlite3.connect(path)
+    try:
+        wal.execute("PRAGMA journal_mode=WAL")
+    finally:
+        wal.close()
+
     # Two single-statement execute() calls (not executescript, which would force
     # an implicit COMMIT and break the manual transaction managed by _conn()).
     with _conn() as conn:
@@ -34,6 +44,11 @@ def init_db() -> None:
                 FOREIGN KEY (poll_id) REFERENCES polls(id)
             )
         """)
+        # /results filters responses by poll_id; without this index every call
+        # full-scans the whole responses table.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_responses_poll_id ON responses(poll_id)"
+        )
 
 
 @contextmanager
@@ -44,6 +59,8 @@ def _conn():
     # implicit transaction before DML, so DDL would auto-commit and escape a
     # rollback. An explicit BEGIN wraps every statement (DML and DDL alike).
     conn.isolation_level = None
+    # SQLite ignores declared foreign keys unless this is enabled per connection.
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         conn.execute("BEGIN")
         yield conn
@@ -53,6 +70,26 @@ def _conn():
         raise
     finally:
         conn.close()
+
+
+def is_expired(row) -> bool:
+    """True if a poll row is closed — explicitly flagged or past ``expires_at``.
+
+    Tolerates a malformed stored ``expires_at`` (treats it as not-expired so the
+    poll stays readable rather than 500-ing). Shared by the API and the CLI.
+    """
+    if row["is_expired"]:
+        return True
+    raw = row["expires_at"]
+    if not raw:
+        return False
+    try:
+        exp = datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return False
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) > exp
 
 
 def create_poll(title: str, questions: list, expires_at: datetime | None = None) -> str:

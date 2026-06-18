@@ -1,6 +1,4 @@
-import json
-
-from settings import DEFAULTS
+from settings import inject_theme
 
 _TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -165,6 +163,7 @@ input[type=range]{width:100%;cursor:pointer;accent-color:var(--p)}
 (function(){
 'use strict';
 var QC="__QC_SETTINGS__";
+const OTHER_PREFIX='Other: ';
 const pollId=location.pathname.split('/').filter(Boolean).pop();
 let poll,qMap={},qOrder=[],hist=[],curId,ans={};
 
@@ -216,7 +215,7 @@ function nextId(q){
 function showQ(){
   const q=qMap[curId];
   const idx=hist.length,total=qOrder.length;
-  const pct=Math.round(idx/total*100);
+  const pct=Math.min(100,Math.round((idx+1)/total*100));
   let h='';
   h+=`<h1 class="poll-title">${x(poll.title)}</h1>`;
   h+=`<div class="prog-wrap"><div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div><div class="prog-label">Question ${idx+1} of ${total}</div></div>`;
@@ -253,7 +252,7 @@ function buildInp(q){
       let h='<div class="choice-list">';
       (q.options||[]).forEach(o=>{h+=`<label class="choice"><input type="radio" name="qi" value="${x(o)}"><span>${x(o)}</span></label>`;});
       if(q.include_other){
-        h+=`<label class="choice"><input type="radio" name="qi" value="__other__" onchange="tog(this)"><span>Other…</span></label>`;
+        h+=`<label class="choice"><input type="radio" name="qi" value="__other__" data-other="1" onchange="tog(this)"><span>Other…</span></label>`;
         h+=`<div class="ow" id="ow"><input type="text" id="oi" placeholder="Please specify"></div>`;
       }
       return h+'</div>';
@@ -262,7 +261,7 @@ function buildInp(q){
       let h='<div class="choice-list">';
       (q.options||[]).forEach(o=>{h+=`<label class="choice"><input type="checkbox" class="cbi" value="${x(o)}"><span>${x(o)}</span></label>`;});
       if(q.include_other){
-        h+=`<label class="choice"><input type="checkbox" class="cbi" value="__other__" onchange="tog(this)"><span>Other…</span></label>`;
+        h+=`<label class="choice"><input type="checkbox" class="cbi" value="__other__" data-other="1" onchange="tog(this)"><span>Other…</span></label>`;
         h+=`<div class="ow" id="ow"><input type="text" id="oi" placeholder="Please specify"></div>`;
       }
       return h+'</div>';
@@ -314,15 +313,13 @@ window.selL=function(btn){
 function getV(q){
   switch(q.type){
     case'checkbox':{
-      const vals=Array.from(document.querySelectorAll('.cbi:checked')).map(c=>c.value);
-      const i=vals.indexOf('__other__');
-      if(i>=0){const oi=document.getElementById('oi');vals[i]='Other: '+(oi?.value||'');}
-      return vals;
+      const checked=Array.from(document.querySelectorAll('.cbi:checked'));
+      return checked.map(c=>c.dataset.other?OTHER_PREFIX+(document.getElementById('oi')?.value||''):c.value);
     }
     case'radio':case'true_false':{
       const s=document.querySelector('input[name="qi"]:checked');
       if(!s)return null;
-      if(s.value==='__other__')return'Other: '+(document.getElementById('oi')?.value||'');
+      if(s.dataset.other)return OTHER_PREFIX+(document.getElementById('oi')?.value||'');
       return s.value;
     }
     case'slider':case'number':{const v=document.getElementById('qi')?.value;return v!==''&&v!=null?+v:null;}
@@ -337,10 +334,10 @@ function restore(q){
   switch(q.type){
     case'radio':case'true_false':{
       let rv=v;
-      if(typeof v==='string'&&v.startsWith('Other: ')){
+      if(typeof v==='string'&&v.startsWith(OTHER_PREFIX)){
         rv='__other__';
         const oi=document.getElementById('oi');
-        if(oi){oi.value=v.slice(7);document.getElementById('ow')?.classList.add('show');}
+        if(oi){oi.value=v.slice(OTHER_PREFIX.length);document.getElementById('ow')?.classList.add('show');}
       }
       const el=document.querySelector(`input[name="qi"][value="${CSS.escape(String(rv))}"]`);
       if(el)el.checked=true;
@@ -349,10 +346,10 @@ function restore(q){
     case'checkbox':
       (Array.isArray(v)?v:[v]).forEach(item=>{
         let rv=item;
-        if(typeof item==='string'&&item.startsWith('Other: ')){
+        if(typeof item==='string'&&item.startsWith(OTHER_PREFIX)){
           rv='__other__';
           const oi=document.getElementById('oi');
-          if(oi){oi.value=item.slice(7);document.getElementById('ow')?.classList.add('show');}
+          if(oi){oi.value=item.slice(OTHER_PREFIX.length);document.getElementById('ow')?.classList.add('show');}
         }
         const el=document.querySelector(`.cbi[value="${CSS.escape(String(rv))}"]`);
         if(el)el.checked=true;
@@ -404,8 +401,9 @@ window.goBack=function(){
 function showReview(){
   let h=`<h1 class="poll-title">${x(poll.title)}</h1><p style="color:var(--muted);margin-bottom:1.25rem">Review your answers before submitting.</p>`;
   h+='<div class="rv-list">';
-  Object.entries(ans).forEach(([qid,v])=>{
+  hist.forEach(qid=>{
     const q=qMap[qid];if(!q)return;
+    const v=ans[qid];
     const d=Array.isArray(v)?v.filter(Boolean).join(', '):(v==null?'—':String(v));
     h+=`<div class="rv-item"><div class="rv-q">${x(q.title)}</div><div class="rv-a">${d?x(d):'<em style="color:var(--muted)">No answer</em>'}</div></div>`;
   });
@@ -417,7 +415,7 @@ function showReview(){
 window.doSubmit=async function(){
   const btn=document.querySelector('.btn-p');
   if(btn)btn.disabled=true;
-  const payload={answers:Object.entries(ans).map(([question_id,value])=>({question_id,value}))};
+  const payload={answers:hist.map(question_id=>({question_id,value:ans[question_id]}))};
   try{
     const r=await fetch('/api/polls/'+pollId+'/responses',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
@@ -440,14 +438,4 @@ init();
 
 
 def render_html(settings: dict) -> str:
-    s = {**DEFAULTS, **settings}
-    css_var = f"--p:{s['primary_color']};"
-    js_settings = json.dumps({
-        "brand_name": s["brand_name"],
-        "brand_icon": s["brand_icon"],
-    })
-    return (
-        _TEMPLATE
-        .replace("/*__QC_THEME__*/", css_var)
-        .replace('"__QC_SETTINGS__"', js_settings)
-    )
+    return inject_theme(_TEMPLATE, settings)

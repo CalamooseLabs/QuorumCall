@@ -4,6 +4,10 @@ A poll is defined by a questions file passed to `quorumcall add-poll` or the
 `POST /api/polls` endpoint. Both **JSON** and **TOML** are accepted; the format
 is chosen by file extension (`.json` / `.toml`).
 
+Every question must have a non-empty `id` and `type`, and ids must be unique
+within a poll; a file that violates this is rejected (HTTP 400, or a CLI error)
+rather than accepted and failing later.
+
 ## JSON Format
 
 ```json

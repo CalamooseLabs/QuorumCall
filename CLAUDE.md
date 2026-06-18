@@ -47,9 +47,10 @@ src/
 ├── main.py      # FastAPI app assembly + request-logging middleware; includes routes.router
 ├── routes.py    # all route handlers + request helpers (_require_admin, _is_expired, _poll_or_404, _parse_questions_file)
 ├── results.py   # aggregate() — builds the /results summary from responses
-├── db.py        # sqlite3 via contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time
+├── questions.py # parse_questions() — parse + validate an uploaded JSON/TOML questions file (API + CLI)
+├── db.py        # sqlite3 via contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time; is_expired(row)
 ├── schemas.py   # Pydantic: AnswerValue, SubmitRequest (minimal — dicts used elsewhere)
-├── settings.py  # load_settings() — reads settings.json; DEFAULTS dict
+├── settings.py  # load_settings(); base_url(); inject_theme(template, settings); DEFAULTS dict
 ├── ui.py        # render_html(settings) — themed single-page poll-taking UI (vanilla JS)
 ├── builder.py   # render_builder_html(settings) — browser poll builder, served at GET /new
 ├── console.py   # shared Rich consoles (stdout / stderr)
@@ -67,7 +68,7 @@ User-facing documentation lives in `docs/` (a lean `README.md` plus
 
 **Data layer**: Two SQLite tables — `polls` (id, title, created_at, expires_at, is_expired, questions_json) and `responses` (id, poll_id, submitted_at, answers_json). Questions and answers are stored as JSON blobs.
 
-**Poll expiry**: A poll is expired if `is_expired=1` OR `expires_at < now()`. The `_is_expired(row)` helper in `routes.py` centralises this check.
+**Poll expiry**: A poll is expired if `is_expired=1` OR `expires_at < now()`. The check lives in `db.is_expired(row)` (tolerant of a malformed stored `expires_at`); `routes._is_expired` and the CLI both delegate to it.
 
 **Conditional branching**: Each question's `next` field is either a string (fixed next question ID), a dict (answer→question ID map), or null/omitted (next question in order). Branching is **frontend-only** — the JS function `nextId()` in `ui.py` evaluates it; the server just stores whatever answers it receives.
 
@@ -164,3 +165,4 @@ Never run `git commit`. Instead:
 | `QUORUMCALL_HOST` | `127.0.0.1` | Bind host |
 | `QUORUMCALL_PORT` | `8000` | Bind port |
 | `QUORUMCALL_ADMIN_KEY` | `` (open) | If set, required as `X-Admin-Key` header for admin routes |
+| `QUORUMCALL_SETTINGS_FILE` | `{data_dir}/settings.json` | Path to the branding/theme settings file |

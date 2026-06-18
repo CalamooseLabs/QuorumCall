@@ -1,9 +1,7 @@
 import argparse
-import json
 import os
 import sys
-import tomllib
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 
@@ -49,26 +47,29 @@ def cmd_serve(args):
 
 def cmd_add_poll(args):
     from console import console
+    from questions import parse_questions
+    from settings import base_url
 
     _setup(args.data_dir)
     import db
 
     path = Path(args.file)
-    if path.suffix.lower() == ".toml":
-        with open(path, "rb") as f:
-            definition = tomllib.load(f)
-    else:
-        with open(path) as f:
-            definition = json.load(f)
+    try:
+        questions = parse_questions(path.read_bytes(), path.name)
+    except (OSError, ValueError) as e:
+        console.print(f"[red]✗[/red] {e}")
+        sys.exit(1)
 
-    questions = definition["questions"]
     exp_dt = None
     if args.expires:
-        exp_dt = datetime.fromisoformat(args.expires)
+        try:
+            exp_dt = datetime.fromisoformat(args.expires)
+        except ValueError:
+            console.print("[red]✗[/red] Invalid --expires — use ISO 8601 (e.g. 2026-12-31T23:59:59)")
+            sys.exit(1)
 
     poll_id = db.create_poll(args.title, questions, exp_dt)
-    base_url = os.environ.get("QUORUMCALL_BASE_URL", "http://localhost:8000")
-    url = f"{base_url}/p/{poll_id}"
+    url = f"{base_url()}/p/{poll_id}"
 
     console.print(f"[green]✓[/green] Created: [bold]{poll_id}[/bold]")
     console.print(f"  URL: {url}")
@@ -95,12 +96,7 @@ def cmd_list_polls(args):
     table.add_column("Expires")
 
     for r in rows:
-        expired = bool(r["is_expired"])
-        if not expired and r["expires_at"]:
-            exp = datetime.fromisoformat(r["expires_at"])
-            if exp.tzinfo is None:
-                exp = exp.replace(tzinfo=timezone.utc)
-            expired = datetime.now(timezone.utc) > exp
+        expired = db.is_expired(r)
         status = "EXPIRED" if expired else "active"
         style = "red" if expired else "green"
         exp_str = r["expires_at"] or "never"
@@ -131,9 +127,9 @@ def main():
     p.add_argument("--port", type=int, help="Bind port (default: 8000)")
     p.add_argument("--data-dir", metavar="DIR", help="Data directory for quorumcall.db")
 
-    p = sub.add_parser("add-poll", help="Create a poll from a JSON file")
+    p = sub.add_parser("add-poll", help="Create a poll from a JSON or TOML file")
     p.add_argument("--title", required=True)
-    p.add_argument("--file", required=True, metavar="questions.json")
+    p.add_argument("--file", required=True, metavar="FILE", help="Path to a JSON or TOML questions file")
     p.add_argument("--expires", metavar="ISO_DATETIME", help="e.g. 2026-12-31T23:59:59")
     p.add_argument("--data-dir", metavar="DIR")
 

@@ -9,9 +9,7 @@ create API is needed. The page carries an optional admin-key field, sent as the
 set).
 """
 
-import json
-
-from settings import DEFAULTS
+from settings import inject_theme
 
 _TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -194,6 +192,7 @@ const TYPES=[
 const OPT_TYPES=['radio','checkbox','dropdown','true_false'];   // edit an options[] list
 const OTHER_TYPES=['radio','checkbox'];                          // support include_other
 const SINGLE=['radio','dropdown','true_false','likert'];        // can branch by answer
+const BRANCH_OPT_TYPES=SINGLE.filter(t=>t!=='likert');          // options[] types that branch by answer
 const PRESETS=[
   {label:'Full name',    q:{type:'short_answer', title:'Full name', required:true}},
   {label:'Email',        q:{type:'email',        title:'Email address', required:true}},
@@ -266,7 +265,7 @@ window.setBranchTarget=function(i,v){qs[i].branchTarget=v;};
 window.setBranchMap=function(i,oi,v){const k=branchOpts(qs[i])[oi];if(k!==undefined)qs[i].branchMap[k]=v;};
 
 function branchOpts(q){
-  if(['radio','dropdown','true_false'].includes(q.type))return(q.options||[]).map(o=>o.trim()).filter(Boolean);
+  if(BRANCH_OPT_TYPES.includes(q.type))return(q.options||[]).map(o=>o.trim()).filter(Boolean);
   if(q.type==='likert')return(q.likert_options||[]).map(o=>o.trim()).filter(Boolean);
   return [];
 }
@@ -283,8 +282,11 @@ function targetOpts(i,sel){
 
 function optEditor(i,f){
   let h='<div class="opts">';
+  // In "branch based on the answer" mode, refresh the branch-map labels on blur
+  // so they don't keep showing the pre-edit option text.
+  const rr=qs[i].branchMode==='map'?' onchange="render()"':'';
   qs[i][f].forEach((o,oi)=>{
-    h+=`<div class="opt-row"><input type="text" value="${x(o)}" placeholder="Option ${oi+1}" oninput="updOpt(${i},'${f}',${oi},this.value)"><button type="button" class="ico-btn del" title="Remove option" onclick="delOpt(${i},'${f}',${oi})">✕</button></div>`;
+    h+=`<div class="opt-row"><input type="text" value="${x(o)}" placeholder="Option ${oi+1}" oninput="updOpt(${i},'${f}',${oi},this.value)"${rr}><button type="button" class="ico-btn del" title="Remove option" onclick="delOpt(${i},'${f}',${oi})">✕</button></div>`;
   });
   h+=`</div><button type="button" class="add-opt" onclick="addOpt(${i},'${f}')">+ Add option</button>`;
   return h;
@@ -473,14 +475,4 @@ addQ();
 
 def render_builder_html(settings: dict) -> str:
     """Render the visual poll-builder page, themed from ``settings``."""
-    s = {**DEFAULTS, **settings}
-    css_var = f"--p:{s['primary_color']};"
-    js_settings = json.dumps({
-        "brand_name": s["brand_name"],
-        "brand_icon": s["brand_icon"],
-    })
-    return (
-        _TEMPLATE
-        .replace("/*__QC_THEME__*/", css_var)
-        .replace('"__QC_SETTINGS__"', js_settings)
-    )
+    return inject_theme(_TEMPLATE, settings)

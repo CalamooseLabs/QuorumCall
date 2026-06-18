@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quorumcall"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Internal polling server"
 requires-python = ">=3.11"
 dependencies = [
@@ -27,7 +27,10 @@ test = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["builder", "cli", "console", "db", "log", "main", "results", "routes", "schemas", "settings", "ui", "_version"]
+py-modules = ["builder", "cli", "console", "db", "log", "main", "questions", "results", "routes", "schemas", "settings", "ui", "_version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "_version.__version__"}
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

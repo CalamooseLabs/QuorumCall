@@ -5,60 +5,47 @@ here — together with the small request helpers they share — separates reques
 logic from app assembly. Response aggregation lives in results.py.
 """
 
+import hmac
 import json
 import os
-import tomllib
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
+from rich.markup import escape
 
 import db
+from _version import __version__
 from builder import render_builder_html
 from log import get_logger
+from questions import parse_questions
 from results import aggregate
 from schemas import SubmitRequest
-from settings import load_settings
+from settings import base_url, load_settings
 from ui import render_html
 
 router = APIRouter()
 log = get_logger()
 
 
-def _base_url() -> str:
-    """Public base URL used to build shareable poll links."""
-    return os.environ.get("QUORUMCALL_BASE_URL", "http://localhost:8000")
-
-
 def _is_expired(row) -> bool:
-    """Return True if a poll row is closed, either explicitly or past ``expires_at``."""
-    if row["is_expired"]:
-        return True
-    if row["expires_at"]:
-        exp = datetime.fromisoformat(row["expires_at"])
-        if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) > exp
-    return False
+    """Return True if a poll row is closed. Delegates to db.is_expired."""
+    return db.is_expired(row)
 
 
 def _require_admin(x_admin_key: Optional[str] = Header(default=None)):
     """Dependency: reject the request unless the admin key matches (when one is set)."""
     key = os.environ.get("QUORUMCALL_ADMIN_KEY", "")
-    if key and x_admin_key != key:
+    if key and not (x_admin_key is not None and hmac.compare_digest(x_admin_key, key)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def _parse_questions_file(content: bytes, filename: str) -> list:
-    """Parse an uploaded questions file as JSON or TOML, chosen by extension."""
-    ext = Path(filename or "").suffix.lower()
+    """Parse + validate an uploaded questions file, mapping errors to HTTP 400."""
     try:
-        if ext == ".toml":
-            return tomllib.loads(content.decode())["questions"]
-        return json.loads(content)["questions"]
-    except (json.JSONDecodeError, tomllib.TOMLDecodeError, UnicodeDecodeError, KeyError) as e:
+        return parse_questions(content, filename)
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid file: {e}")
 
 
@@ -70,9 +57,20 @@ def _poll_or_404(poll_id: str):
     return row
 
 
+def _poll_summary(row) -> dict:
+    """The shared public projection of a poll row (sans questions/url)."""
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "created_at": row["created_at"],
+        "expires_at": row["expires_at"],
+        "is_expired": _is_expired(row),
+    }
+
+
 @router.get("/", response_class=JSONResponse)
 def root():
-    return {"service": "QuorumCall", "version": "0.1.0"}
+    return {"service": "QuorumCall", "version": __version__}
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -103,22 +101,15 @@ async def create_poll(
             raise HTTPException(status_code=400, detail="Invalid expires_at — use ISO 8601")
 
     poll_id = db.create_poll(title, questions, exp_dt)
-    url = f"{_base_url()}/p/{poll_id}"
-    log.info(f"poll created [bold]{poll_id}[/bold] — {title!r}")
+    url = f"{base_url()}/p/{poll_id}"
+    log.info(f"poll created [bold]{poll_id}[/bold] — {escape(repr(title))}")
     return {"id": poll_id, "title": title, "poll_url": url}
 
 
 @router.get("/api/polls", dependencies=[Depends(_require_admin)])
 def list_polls():
     return [
-        {
-            "id": r["id"],
-            "title": r["title"],
-            "created_at": r["created_at"],
-            "expires_at": r["expires_at"],
-            "is_expired": _is_expired(r),
-            "poll_url": f"{_base_url()}/p/{r['id']}",
-        }
+        {**_poll_summary(r), "poll_url": f"{base_url()}/p/{r['id']}"}
         for r in db.list_polls()
     ]
 
@@ -126,14 +117,7 @@ def list_polls():
 @router.get("/api/polls/{poll_id}")
 def get_poll(poll_id: str):
     row = _poll_or_404(poll_id)
-    return {
-        "id": row["id"],
-        "title": row["title"],
-        "created_at": row["created_at"],
-        "expires_at": row["expires_at"],
-        "is_expired": _is_expired(row),
-        "questions": json.loads(row["questions_json"]),
-    }
+    return {**_poll_summary(row), "questions": json.loads(row["questions_json"])}
 
 
 @router.post("/api/polls/{poll_id}/responses")

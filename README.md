@@ -21,7 +21,7 @@ Create your first poll and share the link:
 ```bash
 quorumcall add-poll --title "Team survey" --file example_poll.json
 # ✓ Created: a1b2c3d4-...
-#   URL:     http://127.0.0.1:8000/p/a1b2c3d4-...
+#   URL:     http://localhost:8000/p/a1b2c3d4-...   (host follows QUORUMCALL_BASE_URL)
 ```
 
 Results come back as JSON:

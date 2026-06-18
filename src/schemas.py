@@ -1,5 +1,5 @@
 from typing import Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnswerValue(BaseModel):
@@ -8,4 +8,6 @@ class AnswerValue(BaseModel):
 
 
 class SubmitRequest(BaseModel):
-    answers: list[AnswerValue]
+    # Cap the answer count so a single submission can't carry an unbounded list;
+    # the overall body size is bounded by the middleware in main.py.
+    answers: list[AnswerValue] = Field(max_length=1000)

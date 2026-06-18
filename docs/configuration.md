@@ -30,11 +30,14 @@ at one) to customise the poll UI:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `primary_color` | `#3b82f6` | Button and accent colour (any valid CSS colour) |
+| `primary_color` | `#3b82f6` | Button and accent colour (`#hex`, a CSS colour name, or `rgb()/rgba()/hsl()/hsla()`) |
 | `brand_name` | *(empty)* | Organisation name shown above each poll |
 | `brand_icon` | *(empty)* | URL or data URI for a logo shown above each poll |
 
 The brand bar is hidden when both `brand_name` and `brand_icon` are empty.
+
+`primary_color` is validated against the syntaxes above; an unrecognised value
+falls back to the default rather than being injected into the page's CSS.
 
 On NixOS, set these declaratively with the `primaryColor` / `brandName` /
 `brandIcon` module options instead of writing a file — see

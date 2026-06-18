@@ -18,9 +18,10 @@ src/
 ├── main.py       # FastAPI app assembly + request-logging middleware; includes the router
 ├── routes.py     # all route handlers + request helpers (auth, expiry, file parsing)
 ├── results.py    # aggregate() — turns responses into the results summary
-├── db.py         # sqlite3 via a contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time
+├── questions.py  # parse_questions() — parse + validate an uploaded JSON/TOML questions file
+├── db.py         # sqlite3 via a contextmanager; _db_path() reads QUORUMCALL_DATA_DIR at call time; is_expired(row)
 ├── schemas.py    # Pydantic models (AnswerValue, SubmitRequest)
-├── settings.py   # load_settings() — reads settings.json; DEFAULTS dict
+├── settings.py   # load_settings(); base_url(); inject_theme(template, settings); DEFAULTS dict
 ├── ui.py         # render_html(settings) — themed single-page poll-taking UI (vanilla JS)
 ├── builder.py    # render_builder_html(settings) — browser poll builder, served at GET /new
 ├── console.py    # shared Rich consoles (stdout / stderr)
@@ -51,9 +52,11 @@ between calls (as the CLI and tests do) takes effect immediately.
 
 ## Poll Expiry
 
-A poll is expired if `is_expired = 1` **or** `expires_at < now()`. The
-`_is_expired(row)` helper in `routes.py` centralises this check; naive
-timestamps are treated as UTC. Submitting to an expired poll returns `410`.
+A poll is expired if `is_expired = 1` **or** `expires_at < now()`. The check
+lives in `db.is_expired(row)` (naive timestamps are treated as UTC; a malformed
+stored value is treated as not-expired so the poll stays readable); both
+`routes._is_expired` and the CLI delegate to it. Submitting to an expired poll
+returns `410`.
 
 ## Conditional Branching
 

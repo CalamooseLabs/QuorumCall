@@ -457,3 +457,118 @@ def test_aggregate_unknown_type_null_excluded(client, data_dir):
     db.add_response(pid, [{"question_id": "q1", "value": None}])
     res = client.get(f"/api/polls/{pid}/results").json()["results"]
     assert res["q1"]["values"] == []
+
+
+def test_aggregate_numeric_non_numeric_ignored(client, data_dir):
+    """A non-numeric value to a numeric question must be ignored, not 500 the view."""
+    import db
+    pid, _ = _make_typed_poll(data_dir, "number")
+    db.add_response(pid, [{"question_id": "q_number", "value": "abc"}])
+    db.add_response(pid, [{"question_id": "q_number", "value": ["nope"]}])
+    db.add_response(pid, [{"question_id": "q_number", "value": 7}])
+    r = client.get(f"/api/polls/{pid}/results")
+    assert r.status_code == 200
+    res = r.json()["results"]["q_number"]
+    assert res["count"] == 1
+    assert res["values"] == [7.0]
+
+
+def test_aggregate_checkbox_scalar_other(client, data_dir):
+    import db
+    pid, _ = _make_typed_poll(data_dir, "checkbox")
+    db.add_response(pid, [{"question_id": "q_checkbox", "value": "Other: x"}])
+    res = client.get(f"/api/polls/{pid}/results").json()["results"]["q_checkbox"]
+    assert res["other_values"] == ["x"]
+    assert res["counts"] == {}
+
+
+# ─── create-poll structural validation ───────────────────────────────────────
+
+def test_create_poll_question_missing_id(client):
+    r = upload_poll(client, questions=[{"type": "radio", "title": "Q", "options": ["a"]}])
+    assert r.status_code == 400
+
+
+def test_create_poll_question_missing_type(client):
+    r = upload_poll(client, questions=[{"id": "q1", "title": "Q"}])
+    assert r.status_code == 400
+
+
+def test_create_poll_duplicate_ids(client):
+    qs = [{"id": "q1", "type": "short_answer", "title": "A"},
+          {"id": "q1", "type": "short_answer", "title": "B"}]
+    assert upload_poll(client, questions=qs).status_code == 400
+
+
+def test_create_poll_non_list_questions(client):
+    r = client.post(
+        "/api/polls",
+        data={"title": "x"},
+        files={"questions_file": ("q.json", io.BytesIO(b"[1,2,3]"), "application/json")},
+    )
+    assert r.status_code == 400
+
+
+def test_create_poll_toml_missing_questions(client):
+    r = client.post(
+        "/api/polls",
+        data={"title": "x"},
+        files={"questions_file": ("q.toml", io.BytesIO(b'title = "x"\n'), "application/toml")},
+    )
+    assert r.status_code == 400
+
+
+def test_create_poll_invalid_utf8(client):
+    r = client.post(
+        "/api/polls",
+        data={"title": "x"},
+        files={"questions_file": ("q.toml", io.BytesIO(b"\xff\xfe"), "application/toml")},
+    )
+    assert r.status_code == 400
+
+
+# ─── submit validation, body cap, public-vs-admin ─────────────────────────────
+
+def test_submit_response_invalid_payload(client):
+    pid = upload_poll(client).json()["id"]
+    assert client.post(f"/api/polls/{pid}/responses", json={}).status_code == 422
+    assert client.post(
+        f"/api/polls/{pid}/responses", json={"answers": [{"value": "x"}]}
+    ).status_code == 422
+
+
+def test_oversized_body_rejected(client):
+    pid = upload_poll(client).json()["id"]
+    big = "A" * 1_100_000  # > 1 MiB cap
+    r = client.post(
+        f"/api/polls/{pid}/responses",
+        json={"answers": [{"question_id": "q1", "value": big}]},
+    )
+    assert r.status_code == 413
+
+
+def test_submit_stays_open_when_admin_key_set(client, monkeypatch):
+    pid = upload_poll(client).json()["id"]
+    monkeypatch.setenv("QUORUMCALL_ADMIN_KEY", "secret")
+    # admin routes now gated...
+    assert upload_poll(client, title="gated").status_code == 403
+    assert client.get(f"/api/polls/{pid}/results").status_code == 403
+    # ...but the public submit endpoint is unaffected
+    r = client.post(
+        f"/api/polls/{pid}/responses",
+        json={"answers": [{"question_id": "q1", "value": "hi"}]},
+    )
+    assert r.status_code == 200
+
+
+def test_crafted_markup_path_does_not_500(client):
+    """A path with unbalanced Rich markup must not crash the request via the log line."""
+    import logging
+    from log import setup_logging
+    logging.disable(logging.NOTSET)
+    setup_logging()
+    try:
+        r = client.get("/api/polls/%5B%2Fcyan%5D")  # decodes to /api/polls/[/cyan]
+        assert r.status_code == 404
+    finally:
+        logging.disable(logging.CRITICAL)

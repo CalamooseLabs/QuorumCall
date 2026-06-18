@@ -131,6 +131,12 @@ in
         start, so the secret never enters the Nix store. Mutually exclusive with
         `adminKey`.
 
+        Note: if you rotate the secret by changing the *contents* of a
+        stable-path file out of band, Nix cannot observe that at evaluation time
+        and the service will not restart on its own. Have your secrets manager
+        restart the unit (e.g. agenix `age.secrets.<name>.restartUnits` /
+        sops-nix `restartUnits = [ "quorumcall.service" ]`).
+
         If both `adminKey` and `adminKeyFile` are null, admin routes are
         unprotected.
       '';
@@ -163,8 +169,8 @@ in
       }
       {
         # StateDirectory must be a path relative to /var/lib, so dataDir has to live there.
-        assertion = lib.hasPrefix "/var/lib/" cfg.dataDir;
-        message = "services.quorumcall: dataDir must start with /var/lib/ (it is managed as a systemd StateDirectory); got ${cfg.dataDir}.";
+        assertion = lib.hasPrefix "/var/lib/" cfg.dataDir && cfg.dataDir != "/var/lib/";
+        message = "services.quorumcall: dataDir must be a subdirectory of /var/lib/ (it is managed as a systemd StateDirectory); got ${cfg.dataDir}.";
       }
     ];
 
@@ -201,7 +207,8 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
 
-      restartTriggers = [ cfg.package cfg.host (toString cfg.port) cfg.baseUrl settingsFile ];
+      restartTriggers = [ cfg.package cfg.host (toString cfg.port) cfg.baseUrl cfg.dataDir settingsFile ]
+        ++ lib.optional (cfg.adminKeyFile != null) cfg.adminKeyFile;
 
       environment = {
         QUORUMCALL_HOST          = cfg.host;
@@ -215,11 +222,10 @@ in
       };
 
       serviceConfig = {
-        ExecStart = lib.concatStringsSep " " [
-          "${cfg.package}/bin/quorumcall" "serve"
-          "--host" cfg.host
-          "--port" (toString cfg.port)
-        ];
+        # Host, port and data dir all come from the environment block below; the
+        # CLI falls back to those env vars when the flags are absent, so keeping
+        # ExecStart minimal avoids two competing sources of truth.
+        ExecStart = "${cfg.package}/bin/quorumcall serve";
 
         User  = effectiveUser;
         Group = effectiveGroup;

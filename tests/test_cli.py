@@ -68,6 +68,29 @@ def test_add_poll_uses_base_url_from_env(data_dir, tmp_path, questions, monkeypa
     assert "polls.example.com" in capsys.readouterr().out
 
 
+def test_add_poll_invalid_expiry(data_dir, tmp_path, questions, capsys):
+    q_file = tmp_path / "q.json"
+    q_file.write_text(json.dumps({"questions": questions}))
+    with pytest.raises(SystemExit) as exc:
+        run_cli("add-poll", "--title", "X", "--file", str(q_file), "--expires", "garbage")
+    assert exc.value.code == 1
+    assert "Invalid --expires" in capsys.readouterr().out
+
+
+def test_add_poll_malformed_file(data_dir, tmp_path, capsys):
+    q_file = tmp_path / "q.json"
+    q_file.write_text("not json")
+    with pytest.raises(SystemExit) as exc:
+        run_cli("add-poll", "--title", "X", "--file", str(q_file))
+    assert exc.value.code == 1
+
+
+def test_add_poll_missing_file(data_dir, tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        run_cli("add-poll", "--title", "X", "--file", str(tmp_path / "nope.json"))
+    assert exc.value.code == 1
+
+
 # ─── list-polls ───────────────────────────────────────────────────────────────
 
 def test_list_polls_empty(data_dir, capsys):
